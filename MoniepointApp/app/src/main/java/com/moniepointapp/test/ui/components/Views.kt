@@ -669,6 +669,7 @@ fun BottomNavigationBar(modifier: Modifier = Modifier, navController: NavHostCon
 
     NavigationBar(
         modifier = modifier,
+        containerColor = Color.White // Set the container color to white
     ) {
         bottomNavItems.forEach { item ->
             NavigationBarItem(
