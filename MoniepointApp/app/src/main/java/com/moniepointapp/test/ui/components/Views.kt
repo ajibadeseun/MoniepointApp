@@ -1,8 +1,18 @@
 package com.moniepointapp.test.ui.components
 
 import androidx.annotation.DrawableRes
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -11,6 +21,11 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.with
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -34,6 +49,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -77,12 +93,14 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -107,6 +125,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.google.accompanist.navigation.animation.AnimatedNavHost
 import com.moniepointapp.test.R
 import com.moniepointapp.test.models.Vehicle
 import com.moniepointapp.test.ui.theme.GrayLight
@@ -133,10 +152,26 @@ fun ShipmentTrackingScreen(
     navController: NavHostController,
     onClick: () -> Unit
 ) {
+    val infiniteTransition = rememberInfiniteTransition(label = "")
+    val pulse by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.05f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ), label = ""
+    )
+
     Scaffold(
         topBar = {
-            MainScreenTopBar { // Assuming TopBar is your custom top app bar
-                onClick()
+            AnimatedVisibility(
+                visible = true,
+                enter = slideInVertically { -it } + fadeIn(),
+                exit = slideOutVertically { -it } + fadeOut()
+            ) {
+                MainScreenTopBar { // Assuming TopBar is your custom top app bar
+                    onClick()
+                }
             }
         },
         // Add the bottomBar here, using the passed navController
@@ -150,12 +185,20 @@ fun ShipmentTrackingScreen(
                 .fillMaxSize()
                 .background(Color.White)
         ) {
-            TrackingCard()
+            AnimatedVisibility(
+                visible = true,
+                enter = slideInVertically { it } + fadeIn(),
+                exit = slideOutVertically { it } + fadeOut()
+            ) {
+                TrackingCard()
+            }
+
             AvailableVehiclesSection(vehicles = getVehicles())
         }
     }
 }
 
+@OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun MainScreenTopBar(onClick: () -> Unit) {
     Column(
@@ -223,6 +266,7 @@ fun MainScreenTopBar(onClick: () -> Unit) {
 
 
         }
+
         SearchBar(modifier = Modifier.fillMaxWidth()) { onClick() }
     }
 
@@ -387,6 +431,16 @@ fun SearchBar(modifier: Modifier = Modifier, onClick: () -> Unit) {
 
 @Composable
 fun TrackingCard() {
+    val transition = rememberInfiniteTransition()
+    val alpha by transition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        )
+    )
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -399,6 +453,7 @@ fun TrackingCard() {
                 2.dp
             ),
             shape = RoundedCornerShape(12.dp),
+            modifier = Modifier,
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
             Column(modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)) {
@@ -668,7 +723,7 @@ fun BottomNavigationBar(modifier: Modifier = Modifier, navController: NavHostCon
     val currentRoute = navBackStackEntry?.destination?.route
 
     NavigationBar(
-        modifier = modifier,
+        modifier = modifier.animateContentSize(),
         containerColor = Color.White // Set the container color to white
     ) {
         bottomNavItems.forEach { item ->
@@ -725,6 +780,7 @@ fun AvailableVehiclesSection(
     vehicles: List<Vehicle>,
     modifier: Modifier = Modifier
 ) {
+
     Column(modifier = modifier.padding(vertical = 16.dp)) {
         // Section Title
         Text(
@@ -734,15 +790,28 @@ fun AvailableVehiclesSection(
             modifier = Modifier.padding(start = 16.dp, bottom = 12.dp)
         )
 
-        // Horizontal List of Vehicles
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp) // Spacing between items
+        AnimatedVisibility(
+            visible = vehicles.isNotEmpty(),
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
         ) {
-            items(vehicles, key = { it.name }) { vehicle -> // Use key for performance
-                VehicleCard(vehicle = vehicle)
+            // Horizontal List of Vehicles
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp) // Spacing between items
+            ) {
+                itemsIndexed(vehicles) { index, vehicle -> // Use key for performance
+                    AnimatedVisibility(
+                        visible = true,
+                        enter = slideInHorizontally { (index + 1) * 100 } + fadeIn(),
+
+                    ) {
+                        VehicleCard(vehicle)
+                    }
+                }
             }
         }
+
     }
 }
 
@@ -1010,6 +1079,12 @@ fun ShipmentHistoryScreenPreviewUpdated() { // Renamed preview function
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalculateSuccessScreen(onBackToHome: () -> Unit) {
+    var visible by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        visible = true
+    }
+
     Scaffold(
 //        topBar = {
 //            TopAppBar(
@@ -1029,97 +1104,104 @@ fun CalculateSuccessScreen(onBackToHome: () -> Unit) {
 //        },
         containerColor = Color.White // Set the background color of the screen
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .padding(innerPadding)
-                .fillMaxSize()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+        AnimatedVisibility(
+            visible = visible,
+            enter = scaleIn(initialScale = 0.9f) + fadeIn(),
+            exit = scaleOut(targetScale = 1.1f) + fadeOut()
         ) {
-            Spacer(Modifier.height(56.dp))
-            Row(
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "MoveMate",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    fontStyle = FontStyle.Italic,
-                    color = Color(0xFF5B33A8) // Purple color from the top bar
-                )
-                Spacer(Modifier.width(4.dp))
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(R.drawable.ic_speeding_truck)
-                        .build(),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .heightIn(min = 60.dp, max = 100.dp) // Optional: Constrain height range
-                        .height(80.dp), // Fixed height
-
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Replace with your actual shipment box image
-            Image(
-                painter = painterResource(id = R.drawable.package_box), // Use your actual image resource
-                contentDescription = "Shipment Box",
-                modifier = Modifier.size(200.dp)
-            )
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Text(
-                text = "Total Estimated Amount",
-                fontWeight = FontWeight.W300,
-                fontSize = 24.sp,
-                color = Color.Black
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "$ 1460 USD",
-                fontWeight = FontWeight.W500,
-                fontSize = 22.sp,
-                color = Color(0xFFA5D6A7)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "This amount is estimated this will vary\nif you change your location or weight",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.Gray,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(48.dp))
-
-            Button(
-                onClick = onBackToHome,
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp), // Give button a fixed height for consistency
-                // Use a more rounded shape as per the screenshot
-                shape = RoundedCornerShape(30.dp),
-                colors = ButtonDefaults.buttonColors(
-                    // Use Color object, or better, define in theme
-                    containerColor = Color(0xFFFFA500) // Example Orange
-                )
+                    .padding(innerPadding)
+                    .fillMaxSize()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
+                Spacer(Modifier.height(56.dp))
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "MoveMate",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        fontStyle = FontStyle.Italic,
+                        color = Color(0xFF5B33A8) // Purple color from the top bar
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(R.drawable.ic_speeding_truck)
+                            .build(),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .heightIn(min = 60.dp, max = 100.dp) // Optional: Constrain height range
+                            .height(80.dp), // Fixed height
+
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Replace with your actual shipment box image
+                Image(
+                    painter = painterResource(id = R.drawable.package_box), // Use your actual image resource
+                    contentDescription = "Shipment Box",
+                    modifier = Modifier.size(200.dp)
+                )
+                Spacer(modifier = Modifier.height(32.dp))
 
                 Text(
-                    "Back to home",
-                    // Color should contrast with button container
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
+                    text = "Total Estimated Amount",
+                    fontWeight = FontWeight.W300,
+                    fontSize = 24.sp,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "$ 1460 USD",
+                    fontWeight = FontWeight.W500,
+                    fontSize = 22.sp,
+                    color = Color(0xFFA5D6A7)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "This amount is estimated this will vary\nif you change your location or weight",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
 
+                Spacer(modifier = Modifier.height(48.dp))
+
+                Button(
+                    onClick = onBackToHome,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp), // Give button a fixed height for consistency
+                    // Use a more rounded shape as per the screenshot
+                    shape = RoundedCornerShape(30.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        // Use Color object, or better, define in theme
+                        containerColor = Color(0xFFFFA500) // Example Orange
+                    )
+                ) {
+
+                    Text(
+                        "Back to home",
+                        // Color should contrast with button container
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                }
             }
         }
+
     }
 }
 
@@ -1219,7 +1301,7 @@ fun MainApp() {
 //        bottomBar = { BottomNavigationBar(navController = navController) }
 //    ) { innerPadding ->
 
-    NavHost(
+    AnimatedNavHost(
         navController = navController,
         startDestination = Screen.Home.route,
         modifier = Modifier
@@ -1294,36 +1376,43 @@ fun MainApp() {
 fun SearchScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF5B33A8)) // Purple background
-                    // Apply padding only to start, top, and end. No bottom padding.
-                    .padding(start = 8.dp, top = 16.dp, end = 8.dp)
+            AnimatedVisibility(
+                visible = true,
+                enter = slideInHorizontally { -it } + fadeIn(),
+                exit = slideOutHorizontally { it } + fadeOut()
             ) {
-                // This spacer adds space above the Box, inside the top padding
-                Spacer(Modifier.height(16.dp))
-
-                // Box containing Title and Back Button
-                Row(
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Start,
-                    verticalAlignment = Alignment.CenterVertically
+                        .fillMaxWidth()
+                        .background(Color(0xFF5B33A8)) // Purple background
+                        // Apply padding only to start, top, and end. No bottom padding.
+                        .padding(start = 8.dp, top = 16.dp, end = 8.dp)
                 ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_chevron_left),
-                        tint = Color.White,
-                        contentDescription = "backButton",
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clickable { onBack() }
-                    )
-                    SearchBar(modifier = Modifier) { }
-                }
-                Spacer(Modifier.height(16.dp))
+                    // This spacer adds space above the Box, inside the top padding
+                    Spacer(Modifier.height(16.dp))
 
+                    // Box containing Title and Back Button
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Start,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_chevron_left),
+                            tint = Color.White,
+                            contentDescription = "backButton",
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clickable { onBack() }
+                        )
+                        SearchBar(modifier = Modifier) { }
+                    }
+                    Spacer(Modifier.height(16.dp))
+
+                }
             }
+
         }
     ) { innerPadding ->
 
@@ -1348,14 +1437,19 @@ fun SearchScreen(onBack: () -> Unit) {
                     "Slim fit jeans AW # NEJ35870264978659 ● Bogota → Dhaka",
                     "Office setup desk # NEJ23481570754963 ● France →  German"
                 )
-                items(searchItems) { item ->
-                    SearchResultItem(item = item)
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        Spacer(Modifier.width(16.dp))
-                        Spacer(Modifier.background(color = GrayLight).fillMaxWidth().height(0.3.dp))
-                        Spacer(Modifier.width(16.dp))
+                itemsIndexed(searchItems) {index, item ->
+                    AnimatedVisibility(
+                        visible = true,
+                        enter = slideInHorizontally { it } + fadeIn(),
+                        exit = slideOutHorizontally { -it } + fadeOut(),
+                    ) {
+                        SearchResultItem(item = item)
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            Spacer(Modifier.width(16.dp))
+                            Spacer(Modifier.background(color = GrayLight).fillMaxWidth().height(0.3.dp))
+                            Spacer(Modifier.width(16.dp))
+                        }
                     }
-
                 }
             }
         }
@@ -1432,44 +1526,52 @@ val calculateItems = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalculateScreen(onBack: () -> Unit, onClick: () -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF5B33A8)) // Purple background
-                    // Apply padding only to start, top, and end. No bottom padding.
-                    .padding(start = 16.dp, top = 16.dp, end = 16.dp)
+            AnimatedVisibility(
+                visible = true,
+                enter = slideInHorizontally { -it } + fadeIn(),
+                exit = slideOutHorizontally { it } + fadeOut()
             ) {
-                // This spacer adds space above the Box, inside the top padding
-                Spacer(Modifier.height(16.dp))
-
-                // Box containing Title and Back Button
-                Box(
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth(),
+                        .fillMaxWidth()
+                        .background(Color(0xFF5B33A8)) // Purple background
+                        // Apply padding only to start, top, and end. No bottom padding.
+                        .padding(start = 16.dp, top = 16.dp, end = 16.dp)
                 ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_chevron_left),
-                        tint = Color.White,
-                        contentDescription = "backButton",
-                        modifier = Modifier
-                            .size(36.dp)
-                            .align(Alignment.CenterStart) // Align icon to the start
-                            .clickable { onBack() }
-                    )
-                    Text(
-                        text = "Calculate",
-                        color = Color.White,
-                        // style = TextStyle(color = Color.White), // Redundant if color is set
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.align(Alignment.Center) // Align text to the center
-                    )
-                }
-                Spacer(Modifier.height(16.dp))
+                    // This spacer adds space above the Box, inside the top padding
+                    Spacer(Modifier.height(16.dp))
 
+                    // Box containing Title and Back Button
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(),
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_chevron_left),
+                            tint = Color.White,
+                            contentDescription = "backButton",
+                            modifier = Modifier
+                                .size(36.dp)
+                                .align(Alignment.CenterStart) // Align icon to the start
+                                .clickable { onBack() }
+                        )
+                        Text(
+                            text = "Calculate",
+                            color = Color.White,
+                            // style = TextStyle(color = Color.White), // Redundant if color is set
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.align(Alignment.Center) // Align text to the center
+                        )
+                    }
+                    Spacer(Modifier.height(16.dp))
+
+                }
             }
+
         },
     ) { innerPadding ->
         LazyColumn(
@@ -1534,7 +1636,14 @@ fun CalculateScreen(onBack: () -> Unit, onClick: () -> Unit) {
                         modifier = Modifier.padding(bottom = 4.dp)
                     )
                     // Assuming PackagingDropdown is your Composable
-                    PackagingDropdown()
+                    AnimatedVisibility(
+                        visible = expanded,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        PackagingDropdown()
+                    }
+
                 }
             }
             item {
